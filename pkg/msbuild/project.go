@@ -1,4 +1,4 @@
-package main
+package msbuild
 
 import (
 	"encoding/xml"
@@ -6,7 +6,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strings"
+
 )
 
 type Project struct {
@@ -27,7 +27,6 @@ type BuildProject struct {
 	Include string   `xml:"Include,attr"`
 }
 
-
 func loadProject(filename string) ProjectFile {
 	var proj ProjectFile
 	proj.Filename = filename
@@ -38,6 +37,10 @@ func loadProject(filename string) ProjectFile {
 		return proj
 	}
 	defer xmlFile.Close()
+
+	msbuild.Setvariables("MSBuildProjectDirectory", filepath.Dir(projectFile))
+	msbuild.Setvariables("MSBuildThisFileDirectory", filepath.Dir(projectFile))
+	msbuild.Setvariables("BaseDir", filepath.Dir(projectFile))
 
 	byteValue, _ := ioutil.ReadAll(xmlFile)
 

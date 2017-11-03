@@ -1,12 +1,16 @@
-package main
+package msbuild
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 )
 
-func replaceVariables(proj ProjectFile, value string) string {
+var savedVars map[string]string
+
+func SetVariables(vars map[string]string) {
+	savedVars = vars
+}
+func ReplaceVariables(projectFile string, value string) string {
 	var attrName string
 
 	posStart := strings.Index(value, "$(")
@@ -18,21 +22,11 @@ func replaceVariables(proj ProjectFile, value string) string {
 	}
 
 	if attrName != "" {
-		fmt.Printf("Replacing variable $(%s): \"%s\"", attrName, value)
+		fmt.Printf("Substituting var $(%s): \"%s\"", attrName, value)
 
-		switch attrName {
-		case "MSBuildProjectDirectory":
-			newValue := filepath.Dir(proj.Filename)
-			value = strings.Replace(value, "$(MSBuildProjectDirectory)", newValue, -1)
+		newValue := savedVars[attrName]
+		value = strings.Replace(value, attrName, newValue, -1)
 
-		case "MSBuildThisFileDirectory":
-			newValue := filepath.Dir(proj.Filename)
-			value = strings.Replace(value, "$(MSBuildThisFileDirectory)", newValue, -1)
-
-		case "BaseDir":
-			newValue := filepath.Dir(rootProjectFilename) + "\\"
-			value = strings.Replace(value, "$(BaseDir)", newValue, -1)
-		}
 		fmt.Printf("->\"%s\"\n", value)
 	}
 
