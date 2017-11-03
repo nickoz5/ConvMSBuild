@@ -42,9 +42,9 @@ func LoadProject(filename string) ProjectFile {
 	}
 	defer xmlFile.Close()
 
-	SetVar("MSBuildProjectDirectory", filepath.Dir(proj.Filename))
-	SetVar("MSBuildThisFileDirectory", filepath.Dir(proj.Filename))
-	SetVar("BaseDir", filepath.Dir(proj.Filename))
+	SetVar("MSBuildProjectDirectory", filepath.Dir(proj.Filename)+"\\")
+	SetVar("MSBuildThisFileDirectory", filepath.Dir(proj.Filename)+"\\")
+	SetVar("BaseDir", filepath.Dir(proj.Filename)+"\\")
 
 	byteValue, _ := ioutil.ReadAll(xmlFile)
 

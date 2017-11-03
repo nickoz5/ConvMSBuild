@@ -5,11 +5,12 @@ import (
 	"strings"
 )
 
-var savedVars map[string]string
+var savedVars map[string]string = make(map[string]string)
 
 func SetVar(key string, value string) {
 	savedVars[key] = value
 }
+
 func SubstituteVar(projectFile string, value string) string {
 	var attrName string
 
@@ -25,7 +26,7 @@ func SubstituteVar(projectFile string, value string) string {
 		fmt.Printf("Substituting var $(%s): \"%s\"", attrName, value)
 
 		newValue := savedVars[attrName]
-		value = strings.Replace(value, attrName, newValue, -1)
+		value = strings.Replace(value, "$("+attrName+")", newValue, -1)
 
 		fmt.Printf("->\"%s\"\n", value)
 	}
