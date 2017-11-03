@@ -6,8 +6,12 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-
 )
+
+type ProjectFile struct {
+	Filename    string
+	ProjectData Project
+}
 
 type Project struct {
 	XMLName    xml.Name    `xml:"Project"`
@@ -27,7 +31,7 @@ type BuildProject struct {
 	Include string   `xml:"Include,attr"`
 }
 
-func loadProject(filename string) ProjectFile {
+func LoadProject(filename string) ProjectFile {
 	var proj ProjectFile
 	proj.Filename = filename
 
@@ -38,9 +42,9 @@ func loadProject(filename string) ProjectFile {
 	}
 	defer xmlFile.Close()
 
-	msbuild.Setvariables("MSBuildProjectDirectory", filepath.Dir(projectFile))
-	msbuild.Setvariables("MSBuildThisFileDirectory", filepath.Dir(projectFile))
-	msbuild.Setvariables("BaseDir", filepath.Dir(projectFile))
+	SetVar("MSBuildProjectDirectory", filepath.Dir(proj.Filename))
+	SetVar("MSBuildThisFileDirectory", filepath.Dir(proj.Filename))
+	SetVar("BaseDir", filepath.Dir(proj.Filename))
 
 	byteValue, _ := ioutil.ReadAll(xmlFile)
 
@@ -48,7 +52,7 @@ func loadProject(filename string) ProjectFile {
 
 	fmt.Println("Loaded file: ", proj.Filename)
 	for _, value := range proj.ProjectData.Imports {
-		value.Project = replaceVariables(proj, value.Project)
+		value.Project = SubstituteVar(proj.Filename, value.Project)
 
 		// TODO import properties..
 	}
@@ -56,7 +60,7 @@ func loadProject(filename string) ProjectFile {
 	for i1, _ := range proj.ProjectData.ItemGroups {
 		for i2, _ := range proj.ProjectData.ItemGroups[i1].BuildProjects {
 			item := &proj.ProjectData.ItemGroups[i1].BuildProjects[i2]
-			item.Include = replaceVariables(proj, item.Include)
+			item.Include = SubstituteVar(proj.Filename, item.Include)
 		}
 	}
 

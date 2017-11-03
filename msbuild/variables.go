@@ -7,10 +7,10 @@ import (
 
 var savedVars map[string]string
 
-func SetVariables(vars map[string]string) {
-	savedVars = vars
+func SetVar(key string, value string) {
+	savedVars[key] = value
 }
-func ReplaceVariables(projectFile string, value string) string {
+func SubstituteVar(projectFile string, value string) string {
 	var attrName string
 
 	posStart := strings.Index(value, "$(")
