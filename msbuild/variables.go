@@ -2,34 +2,70 @@ package msbuild
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 )
 
 var savedVars map[string]string = make(map[string]string)
 
-func SetVar(key string, value string) {
-	savedVars[key] = value
+func setVar(key string, value string) {
+	if savedVars[key] == "" {
+		savedVars[key] = value
+		fmt.Printf("Environment: $(%s) = \"%s\"\n", key, value)
+	}
 }
 
 func SubstituteVar(projectFile string, value string) string {
-	var attrName string
+	for {
+		posStart := strings.Index(value, "$(")
+		if posStart == -1 {
+			break
+		}
 
-	posStart := strings.Index(value, "$(")
-	if posStart != -1 {
-		posEnd := strings.Index(value, ")")
-		if posEnd != -1 {
-			attrName = value[posStart+2 : posEnd]
+		posEnd := strings.Index(value[posStart:], ")")
+		if posEnd == -1 {
+			break
+		}
+
+		attrName := value[posStart+2 : posStart+posEnd]
+
+		if attrName != "" {
+			// check system variable first
+			attrValue, isSystem := getSystemVar(projectFile, attrName)
+			if !isSystem {
+				attrValue = savedVars[attrName]
+			}
+
+			// replace the variable with the saved value
+			value = strings.Replace(value, "$("+attrName+")", attrValue, -1)
+
+			if attrValue == "" && !isSystem {
+				fmt.Println("Variable not found: $(" + attrName + ")")
+			}
 		}
 	}
 
-	if attrName != "" {
-		fmt.Printf("Substituting var $(%s): \"%s\"", attrName, value)
+	return value
+}
 
-		newValue := savedVars[attrName]
-		value = strings.Replace(value, "$("+attrName+")", newValue, -1)
+func getSystemVar(projectFile string, attrName string) (string, bool) {
+	var attrValue string
 
-		fmt.Printf("->\"%s\"\n", value)
+	found := true
+
+	switch attrName {
+	case "MSBuildProjectDirectory":
+		attrValue = filepath.Dir(projectFile) + "\\"
+	case "MSBuildThisFileDirectory":
+		attrValue = filepath.Dir(projectFile) + "\\"
+	case "MSBuildToolsPath":
+		attrValue = ""
+	case "MSBuildToolsVersion":
+		attrValue = ""
+
+	default:
+		found = false
 	}
 
-	return value
+	return attrValue, found
 }

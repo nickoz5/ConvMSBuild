@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"path/filepath"
 )
 
 type ProjectFile struct {
@@ -14,21 +13,34 @@ type ProjectFile struct {
 }
 
 type Project struct {
-	XMLName    xml.Name    `xml:"Project"`
-	Imports    []Import    `xml:"Import"`
-	ItemGroups []ItemGroup `xml:"ItemGroup"`
+	XMLName        xml.Name        `xml:"Project"`
+	Imports        []Import        `xml:"Import"`
+	ItemGroups     []ItemGroup     `xml:"ItemGroup"`
+	PropertyGroups []PropertyGroup `xml:"PropertyGroup"`
+	Targets        []Target        `xml:"Target"`
 }
 type Import struct {
-	XMLName xml.Name `xml:"Import"`
-	Project string   `xml:"Project,attr"`
+	XMLName xml.Name
+	Project string `xml:"Project,attr"`
 }
 type ItemGroup struct {
-	XMLName       xml.Name       `xml:"ItemGroup"`
+	XMLName       xml.Name
 	BuildProjects []BuildProject `xml:"BuildProject"`
 }
 type BuildProject struct {
-	XMLName xml.Name `xml:"BuildProject"`
-	Include string   `xml:"Include,attr"`
+	XMLName xml.Name
+	Include string `xml:"Include,attr"`
+}
+type PropertyGroup struct {
+	XMLName xml.Name
+	Nodes   []Property `xml:",any"`
+}
+type Property struct {
+	XMLName xml.Name
+	Content string `xml:",innerxml"`
+}
+type Target struct {
+	XMLName xml.Name
 }
 
 func LoadProject(filename string) ProjectFile {
@@ -37,30 +49,33 @@ func LoadProject(filename string) ProjectFile {
 
 	xmlFile, err := os.Open(proj.Filename)
 	if err != nil {
-		fmt.Println("Error opening file: ", err)
+		fmt.Println("Error opening file: ", proj.Filename)
 		return proj
 	}
 	defer xmlFile.Close()
 
-	SetVar("MSBuildProjectDirectory", filepath.Dir(proj.Filename)+"\\")
-	SetVar("MSBuildThisFileDirectory", filepath.Dir(proj.Filename)+"\\")
-	SetVar("BaseDir", filepath.Dir(proj.Filename)+"\\")
-
 	byteValue, _ := ioutil.ReadAll(xmlFile)
-
 	xml.Unmarshal(byteValue, &proj.ProjectData)
 
 	fmt.Println("Loaded file: ", proj.Filename)
-	for _, value := range proj.ProjectData.Imports {
-		value.Project = SubstituteVar(proj.Filename, value.Project)
 
-		// TODO import properties..
+	// parse all properties
+	for _, group := range proj.ProjectData.PropertyGroups {
+		for _, prop := range group.Nodes {
+			value := SubstituteVar(proj.Filename, prop.Content)
+			setVar(prop.XMLName.Local, value)
+		}
 	}
 
-	for i1, _ := range proj.ProjectData.ItemGroups {
-		for i2, _ := range proj.ProjectData.ItemGroups[i1].BuildProjects {
-			item := &proj.ProjectData.ItemGroups[i1].BuildProjects[i2]
-			item.Include = SubstituteVar(proj.Filename, item.Include)
+	for _, item := range proj.ProjectData.Imports {
+		projectFilename := SubstituteVar(proj.Filename, item.Project)
+		LoadProject(projectFilename)
+	}
+
+	for _, item := range proj.ProjectData.ItemGroups {
+		for _, buildProj := range item.BuildProjects {
+			projectFilename := SubstituteVar(proj.Filename, buildProj.Include)
+			LoadProject(projectFilename)
 		}
 	}
 
