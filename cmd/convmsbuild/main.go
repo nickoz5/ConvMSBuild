@@ -15,6 +15,9 @@ func main() {
 	}
 	fmt.Println("Root project filename: ", rootProjectFilename)
 
+	MakeNewSolution()
+
 	_ = msbuild.LoadProject(rootProjectFilename)
 
+	CreateSolution()
 }

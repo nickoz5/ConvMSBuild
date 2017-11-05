@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 )
 
 type ProjectFile struct {
@@ -41,6 +42,12 @@ type Property struct {
 }
 type Target struct {
 	XMLName xml.Name
+	Name    string        `xml:"Name,attr"`
+	Build   []TargetBuild `xml:"MSBuild"`
+}
+type TargetBuild struct {
+	XMLName    xml.Name
+	TargetName string `xml:"Projects,attr"`
 }
 
 func LoadProject(filename string) ProjectFile {
@@ -79,5 +86,19 @@ func LoadProject(filename string) ProjectFile {
 		}
 	}
 
+	for _, item := range proj.ProjectData.Targets {
+		for _, target := range item.Build {
+			projectFilename := SubstituteVar(proj.Filename, target.TargetName)
+			LoadTarget(projectFilename)
+		}
+	}
+
 	return proj
+}
+
+func LoadTarget(projectFilename string) {
+	switch filepath.Ext(projectFilename) {
+	case ".sln":
+		loadSolution(projectFilename)
+	}
 }
