@@ -6,16 +6,13 @@ import (
 	"strings"
 )
 
-var savedVars map[string]string = make(map[string]string)
-
-func setVar(key string, value string) {
-	if savedVars[key] == "" {
-		savedVars[key] = value
-		fmt.Printf("Environment: $(%s) = \"%s\"\n", key, value)
+func setVar(ctx ProjectFile, key string, value string) {
+	if ctx.ProjectData.PropValues[key] == "" {
+		ctx.ProjectData.PropValues[key] = value
 	}
 }
 
-func SubstituteVar(projectFile string, value string) string {
+func SubstituteVar(ctx ProjectFile, value string) string {
 	for {
 		posStart := strings.Index(value, "$(")
 		if posStart == -1 {
@@ -31,9 +28,9 @@ func SubstituteVar(projectFile string, value string) string {
 
 		if attrName != "" {
 			// check system variable first
-			attrValue, isSystem := getSystemVar(projectFile, attrName)
+			attrValue, isSystem := getSystemVar(ctx, attrName)
 			if !isSystem {
-				attrValue = savedVars[attrName]
+				attrValue = ctx.ProjectData.PropValues[attrName]
 			}
 
 			// replace the variable with the saved value
@@ -48,16 +45,16 @@ func SubstituteVar(projectFile string, value string) string {
 	return value
 }
 
-func getSystemVar(projectFile string, attrName string) (string, bool) {
+func getSystemVar(ctx ProjectFile, attrName string) (string, bool) {
 	var attrValue string
 
 	found := true
 
 	switch attrName {
 	case "MSBuildProjectDirectory":
-		attrValue = filepath.Dir(projectFile) + "\\"
+		attrValue = filepath.Dir(ctx.Filename) + "\\"
 	case "MSBuildThisFileDirectory":
-		attrValue = filepath.Dir(projectFile) + "\\"
+		attrValue = filepath.Dir(ctx.Filename) + "\\"
 	case "MSBuildToolsPath":
 		attrValue = ""
 	case "MSBuildToolsVersion":

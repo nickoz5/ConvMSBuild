@@ -4,28 +4,30 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 )
 
-type solutionFile struct {
+type SolutionFile struct {
 	Filename string
-	Projects map[string]projectDefinition
+	Projects map[string]ProjectDefinition
 }
 
-type projectDefinition struct {
+type ProjectDefinition struct {
+	TypeGUID     string
 	Name         string
 	Path         string
 	ProjectGUID  string
 	Dependancies []string
 }
 
-var newSolution solutionFile
+var newSolution SolutionFile
 
-func loadSolution(filename string) (solutionFile, int) {
-	var solution solutionFile
+func LoadSolution(filename string) (SolutionFile, int) {
+	var solution SolutionFile
 	solution.Filename = filename
-	solution.Projects = make(map[string]projectDefinition)
+	solution.Projects = make(map[string]ProjectDefinition)
 
 	fmt.Printf("Loading solution: " + filename + "... ")
 
@@ -72,7 +74,7 @@ func loadSolution(filename string) (solutionFile, int) {
 			}
 
 			// found a valid project definition
-			project, err := parseSolutionProject(line)
+			project, err := parseSolutionProject(filename, line)
 			if err == 0 {
 				solution.Projects[project.Path] = project
 			}
@@ -82,13 +84,15 @@ func loadSolution(filename string) (solutionFile, int) {
 	return solution, 0
 }
 
-func parseSolutionProject(line string) (projectDefinition, int) {
-	var proj projectDefinition
+func parseSolutionProject(solutionfilename string, line string) (ProjectDefinition, int) {
+	var proj ProjectDefinition
 
 	projectKeypair := strings.Split(line, "=")
 	if len(projectKeypair) != 2 {
 		return proj, -1
 	}
+
+	proj.TypeGUID = line[9:47]
 
 	projectDefFull := strings.Replace(projectKeypair[1], "\"", "", -1)
 	projectDef := strings.Split(projectDefFull, ",")
@@ -97,19 +101,49 @@ func parseSolutionProject(line string) (projectDefinition, int) {
 	proj.Path = strings.Trim(projectDef[1], " ")
 	proj.ProjectGUID = strings.Trim(projectDef[2], " ")
 
-	registerProject(proj)
+	proj.Path = filepath.Dir(solutionfilename) + "\\" + proj.Path
 
 	return proj, 0
 }
 
-func MakeNewSolution() {
-	newSolution.Projects = make(map[string]projectDefinition)
-}
-
-func registerProject(proj projectDefinition) {
+func registerProject(proj ProjectDefinition) {
 	newSolution.Projects[proj.Name] = proj
 }
 
-func CreateSolution() {
-	fmt.Println(newSolution)
+func checkError(err error) {
+	if err != nil {
+		panic(err)
+	}
+}
+
+func CreateSolutionFile(sln SolutionFile, baseDir string) {
+
+	f, err := os.Create(sln.Filename)
+	checkError(err)
+
+	defer f.Close()
+
+	w := bufio.NewWriter(f)
+
+	//	var wlen int = -1
+
+	// dump the header
+	_, err = w.WriteString("\n" +
+		"Microsoft Visual Studio Solution File, Format Version 12.00\n" +
+		"# Visual Studio 2012\n")
+	checkError(err)
+
+	for _, proj := range sln.Projects {
+		filename := strings.Replace(proj.Path, baseDir, "", 1)
+
+		_, err = w.WriteString("Project(\"" + proj.TypeGUID + "\") = \"" + proj.Name + "\", \"" + filename + "\", \"" + proj.ProjectGUID + "\"\n")
+		checkError(err)
+
+		_, err = w.WriteString("EndProject\n")
+		checkError(err)
+	}
+
+	fmt.Printf("Solution file [%s] created with [%d] projects\n", sln.Filename, len(sln.Projects))
+
+	w.Flush()
 }

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"path/filepath"
+	"strings"
 )
 
 type ProjectFile struct {
@@ -19,6 +19,7 @@ type Project struct {
 	ItemGroups     []ItemGroup     `xml:"ItemGroup"`
 	PropertyGroups []PropertyGroup `xml:"PropertyGroup"`
 	Targets        []Target        `xml:"Target"`
+	PropValues     map[string]string
 }
 type Import struct {
 	XMLName xml.Name
@@ -31,6 +32,7 @@ type ItemGroup struct {
 type BuildProject struct {
 	XMLName xml.Name
 	Include string `xml:"Include,attr"`
+	Project ProjectFile
 }
 type PropertyGroup struct {
 	XMLName xml.Name
@@ -42,17 +44,19 @@ type Property struct {
 }
 type Target struct {
 	XMLName xml.Name
-	Name    string        `xml:"Name,attr"`
-	Build   []TargetBuild `xml:"MSBuild"`
+	Name    string          `xml:"Name,attr"`
+	Builds  []MSBuildTarget `xml:"MSBuild"`
 }
-type TargetBuild struct {
-	XMLName    xml.Name
-	TargetName string `xml:"Projects,attr"`
+type MSBuildTarget struct {
+	XMLName      xml.Name
+	ProjectNames string `xml:"Projects,attr"`
+	Projects     []SolutionFile
 }
 
 func LoadProject(filename string) ProjectFile {
 	var proj ProjectFile
 	proj.Filename = filename
+	proj.ProjectData.PropValues = make(map[string]string)
 
 	xmlFile, err := os.Open(proj.Filename)
 	if err != nil {
@@ -64,41 +68,54 @@ func LoadProject(filename string) ProjectFile {
 	byteValue, _ := ioutil.ReadAll(xmlFile)
 	xml.Unmarshal(byteValue, &proj.ProjectData)
 
-	fmt.Println("Loaded file: ", proj.Filename)
-
 	// parse all properties
 	for _, group := range proj.ProjectData.PropertyGroups {
 		for _, prop := range group.Nodes {
-			value := SubstituteVar(proj.Filename, prop.Content)
-			setVar(prop.XMLName.Local, value)
+			value := SubstituteVar(proj, prop.Content)
+			setVar(proj, prop.XMLName.Local, value)
 		}
 	}
 
 	for _, item := range proj.ProjectData.Imports {
-		projectFilename := SubstituteVar(proj.Filename, item.Project)
-		LoadProject(projectFilename)
+		projectFilename := SubstituteVar(proj, item.Project)
+		imp := LoadProject(projectFilename)
+
+		// import data from imp into proj
+		for k, v := range imp.ProjectData.PropValues {
+			proj.ProjectData.PropValues[k] = v
+		}
+
+		//proj.ProjectData.ItemGroups = append(proj.ProjectData.ItemGroups, imp.ProjectData.ItemGroups)
 	}
 
-	for _, item := range proj.ProjectData.ItemGroups {
-		for _, buildProj := range item.BuildProjects {
-			projectFilename := SubstituteVar(proj.Filename, buildProj.Include)
-			LoadProject(projectFilename)
+	for itemidx, _ := range proj.ProjectData.ItemGroups {
+		item := &proj.ProjectData.ItemGroups[itemidx]
+
+		for buildidx, _ := range item.BuildProjects {
+			buildproj := &item.BuildProjects[buildidx]
+
+			projectFilename := SubstituteVar(proj, buildproj.Include)
+			buildproj.Project = LoadProject(projectFilename)
 		}
 	}
 
-	for _, item := range proj.ProjectData.Targets {
-		for _, target := range item.Build {
-			projectFilename := SubstituteVar(proj.Filename, target.TargetName)
-			LoadTarget(projectFilename)
+	for targetidx, _ := range proj.ProjectData.Targets {
+		target := &proj.ProjectData.Targets[targetidx]
+
+		// only interested in "Build" targets..
+		for buildidx, _ := range target.Builds {
+			buildtarget := &target.Builds[buildidx]
+
+			targetnames := strings.Split(buildtarget.ProjectNames, ";")
+
+			buildtarget.Projects = make([]SolutionFile, len(targetnames))
+
+			for idx, target := range targetnames {
+				projectFilename := SubstituteVar(proj, target)
+				buildtarget.Projects[idx], _ = LoadSolution(projectFilename)
+			}
 		}
 	}
 
 	return proj
-}
-
-func LoadTarget(projectFilename string) {
-	switch filepath.Ext(projectFilename) {
-	case ".sln":
-		loadSolution(projectFilename)
-	}
 }
