@@ -99,20 +99,27 @@ func LoadProject(filename string) ProjectFile {
 		}
 	}
 
-	for targetidx, _ := range proj.ProjectData.Targets {
+	for targetidx := range proj.ProjectData.Targets {
 		target := &proj.ProjectData.Targets[targetidx]
 
 		// only interested in "Build" targets..
-		for buildidx, _ := range target.Builds {
+		for buildidx := range target.Builds {
 			buildtarget := &target.Builds[buildidx]
 
 			targetnames := strings.Split(buildtarget.ProjectNames, ";")
 
-			buildtarget.Projects = make([]SolutionFile, len(targetnames))
+			count := len(targetnames)
+			if count > 0 {
+				buildtarget.Projects = make([]SolutionFile, count)
 
-			for idx, target := range targetnames {
-				projectFilename := SubstituteVar(proj, target)
-				buildtarget.Projects[idx], _ = LoadSolution(projectFilename)
+				for targetidx := range targetnames {
+					projectFilename := SubstituteVar(proj, targetnames[targetidx])
+					sln, _ := LoadSolution(projectFilename)
+
+					buildtarget.Projects[targetidx] = sln
+
+					fmt.Println(buildtarget.Projects)
+				}
 			}
 		}
 	}

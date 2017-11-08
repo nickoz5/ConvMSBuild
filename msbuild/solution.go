@@ -139,9 +139,27 @@ func CreateSolutionFile(sln SolutionFile, baseDir string) {
 		_, err = w.WriteString("Project(\"" + proj.TypeGUID + "\") = \"" + proj.Name + "\", \"" + filename + "\", \"" + proj.ProjectGUID + "\"\n")
 		checkError(err)
 
+		_, err = w.WriteString("\tProjectSection(ProjectDependencies) = postProject")
+		_, err = w.WriteString("\t\t{B1AD7565-468E-4675-B684-FDC9BD1A35EB} = {B1AD7565-468E-4675-B684-FDC9BD1A35EB}")
+		_, err = w.WriteString("\tEndProjectSection")
+
 		_, err = w.WriteString("EndProject\n")
 		checkError(err)
 	}
+
+	_, err = w.WriteString("Global")
+
+	_, err = w.WriteString("\tGlobalSection(SolutionConfigurationPlatforms) = preSolution")
+	_, err = w.WriteString("\t\tDebug|Any CPU = Debug|Any CPU")
+	_, err = w.WriteString("\t\tDebug|x64 = Debug|x64")
+	_, err = w.WriteString("\t\tDebug|x86 = Debug|x86")
+	_, err = w.WriteString("\t\tRelease|Any CPU = Release|Any CPU")
+	_, err = w.WriteString("\t\tRelease|x64 = Release|x64")
+	_, err = w.WriteString("\t\tRelease|x86 = Release|x86")
+	_, err = w.WriteString("\tEndGlobalSection")
+
+	_, err = w.WriteString("\tGlobalSection(ProjectConfigurationPlatforms) = postSolution")
+	_, err = w.WriteString("\tEndGlobalSection")
 
 	fmt.Printf("Solution file [%s] created with [%d] projects\n", sln.Filename, len(sln.Projects))
 

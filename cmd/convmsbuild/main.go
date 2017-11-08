@@ -33,27 +33,45 @@ func main() {
 	var sln msbuild.SolutionFile
 	sln.Filename = baseDir + outputFilename
 
-	addTargets(sln, proj)
+	sln.Projects = make(map[string]msbuild.ProjectDefinition)
+	addTargets(&sln, proj)
+
+	fmt.Println("Found project definition total: ", len(sln.Projects))
 
 	// determine number of target projects..
 
 	msbuild.CreateSolutionFile(sln, baseDir)
 }
 
-func addTargets(sln msbuild.SolutionFile, proj msbuild.ProjectFile) {
+func addTargets(sln *msbuild.SolutionFile, proj msbuild.ProjectFile) {
 
-	sln.Projects = make(map[string]msbuild.ProjectDefinition)
+	for _, item := range proj.ProjectData.ItemGroups {
+		// only interested in "Build" targets..
+		for _, buildproj := range item.BuildProjects {
+			// recurse on all referenced projects
+			addTargets(sln, buildproj.Project)
+		}
+	}
 
-	for targetidx, _ := range proj.ProjectData.Targets {
-		target := &proj.ProjectData.Targets[targetidx]
+	fmt.Println("Scanning msbuild project: ", proj.Filename)
+
+	for _, t := range proj.ProjectData.Targets {
 
 		// only interested in "Build" targets..
-		for buildidx, _ := range target.Builds {
-			buildtarget := &target.Builds[buildidx]
+		for _, b := range t.Builds {
 
-			for _, target := range buildtarget.Projects {
+			for _, sproj := range b.Projects {
 
-				//				sln.Projects[target. Path] = target
+				// these are our solution files..
+				for k, v := range sproj.Projects {
+
+					if _, ok := sln.Projects[k]; ok == false {
+						// this is a VS project file..
+						fmt.Println("Found project definition: ", v)
+
+						sln.Projects[k] = v
+					}
+				}
 			}
 		}
 	}
