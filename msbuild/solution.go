@@ -19,7 +19,7 @@ type ProjectDefinition struct {
 	Name         string
 	Path         string
 	ProjectGUID  string
-	Dependancies []string
+	Dependencies []string
 }
 
 var newSolution SolutionFile
@@ -55,33 +55,53 @@ func LoadSolution(filename string) (SolutionFile, int) {
 	for scanner.Scan() {
 		line := scanner.Text()
 
-		// Project definition format:
-		// Project("{Project Type GUID}") = "projectname", "project.vcxproj", "{Project GUID}"
-
-		// Project type GUID values:
-		// https://www.codeproject.com/Reference/720512/List-of-Visual-Studio-Project-Type-GUIDs
-
 		found, _ := regexp.MatchString("Project\\(\\\"\\{[\\w]{8}\\-[\\w]{4}\\-[\\w]{4}\\-[\\w]{4}\\-[\\w]{12}\\}\\\"\\)", line)
 
 		if found {
-			if !scanner.Scan() {
-				break
-			}
-
-			endline := scanner.Text()
-			if endline != "EndProject" {
-				continue
-			}
-
-			// found a valid project definition
-			project, err := parseSolutionProject(filename, line)
-			if err == 0 {
-				solution.Projects[project.Path] = project
-			}
+			scanProjectData(line)
 		}
 	}
 
 	return solution, 0
+}
+
+func scanProjectData(line string) ProjectDefinition {
+
+	// found a valid project definition
+	project, err := parseSolutionProject(filename, line)
+
+	for scanner.Scan() {
+
+		line := scanner.Text()
+		switch line {
+		case "EndProject":
+			break
+		case "ProjectSection(ProjectDependencies) = postProject":
+			scanProjectDeps(line, &proj)
+		}
+	}
+
+	// found a valid project definition
+	project, err := parseSolutionProject(filename, line)
+	if err == 0 {
+		solution.Projects[project.Path] = project
+	}
+
+	return project
+}
+
+func scanProjectDeps(line string, proj *ProjectDefinition) ProjectDefinition {
+
+	for scanner.Scan() {
+
+		line := scanner.Text()
+
+		if line == "EndProjectSection" {
+			break
+		}
+
+		proj.Dependencies
+	}
 }
 
 func parseSolutionProject(solutionfilename string, line string) (ProjectDefinition, int) {
@@ -93,6 +113,8 @@ func parseSolutionProject(solutionfilename string, line string) (ProjectDefiniti
 	}
 
 	proj.TypeGUID = line[9:47]
+
+	// Project type GUID values: https://www.codeproject.com/Reference/720512/List-of-Visual-Studio-Project-Type-GUIDs
 
 	projectDefFull := strings.Replace(projectKeypair[1], "\"", "", -1)
 	projectDef := strings.Split(projectDefFull, ",")
@@ -139,27 +161,28 @@ func CreateSolutionFile(sln SolutionFile, baseDir string) {
 		_, err = w.WriteString("Project(\"" + proj.TypeGUID + "\") = \"" + proj.Name + "\", \"" + filename + "\", \"" + proj.ProjectGUID + "\"\n")
 		checkError(err)
 
-		_, err = w.WriteString("\tProjectSection(ProjectDependencies) = postProject")
-		_, err = w.WriteString("\t\t{B1AD7565-468E-4675-B684-FDC9BD1A35EB} = {B1AD7565-468E-4675-B684-FDC9BD1A35EB}")
-		_, err = w.WriteString("\tEndProjectSection")
+		// dump dependencies
+		_, err = w.WriteString("\tProjectSection(ProjectDependencies) = postProject\n")
+		_, err = w.WriteString("\t\t{B1AD7565-468E-4675-B684-FDC9BD1A35EB} = {B1AD7565-468E-4675-B684-FDC9BD1A35EB}\n")
+		_, err = w.WriteString("\tEndProjectSection\n")
 
 		_, err = w.WriteString("EndProject\n")
 		checkError(err)
 	}
 
-	_, err = w.WriteString("Global")
+	_, err = w.WriteString("Global\n")
 
-	_, err = w.WriteString("\tGlobalSection(SolutionConfigurationPlatforms) = preSolution")
-	_, err = w.WriteString("\t\tDebug|Any CPU = Debug|Any CPU")
-	_, err = w.WriteString("\t\tDebug|x64 = Debug|x64")
-	_, err = w.WriteString("\t\tDebug|x86 = Debug|x86")
-	_, err = w.WriteString("\t\tRelease|Any CPU = Release|Any CPU")
-	_, err = w.WriteString("\t\tRelease|x64 = Release|x64")
-	_, err = w.WriteString("\t\tRelease|x86 = Release|x86")
-	_, err = w.WriteString("\tEndGlobalSection")
+	_, err = w.WriteString("\tGlobalSection(SolutionConfigurationPlatforms) = preSolution\n")
+	_, err = w.WriteString("\t\tDebug|Any CPU = Debug|Any CPU\n")
+	_, err = w.WriteString("\t\tDebug|x64 = Debug|x64\n")
+	_, err = w.WriteString("\t\tDebug|x86 = Debug|x86\n")
+	_, err = w.WriteString("\t\tRelease|Any CPU = Release|Any CPU\n")
+	_, err = w.WriteString("\t\tRelease|x64 = Release|x64\n")
+	_, err = w.WriteString("\t\tRelease|x86 = Release|x86\n")
+	_, err = w.WriteString("\tEndGlobalSection\n")
 
-	_, err = w.WriteString("\tGlobalSection(ProjectConfigurationPlatforms) = postSolution")
-	_, err = w.WriteString("\tEndGlobalSection")
+	_, err = w.WriteString("\tGlobalSection(ProjectConfigurationPlatforms) = postSolution\n")
+	_, err = w.WriteString("\tEndGlobalSection\n")
 
 	fmt.Printf("Solution file [%s] created with [%d] projects\n", sln.Filename, len(sln.Projects))
 
