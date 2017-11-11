@@ -10,8 +10,9 @@ import (
 )
 
 type SolutionFile struct {
-	Filename string
-	Projects map[string]ProjectDefinition
+	Filename       string
+	Projects       map[string]ProjectDefinition
+	NestedProjects []string
 }
 
 type ProjectDefinition struct {
@@ -21,8 +22,6 @@ type ProjectDefinition struct {
 	ProjectGUID  string
 	Dependencies []string
 }
-
-var newSolution SolutionFile
 
 func LoadSolution(filename string) (SolutionFile, int) {
 	var solution SolutionFile
@@ -54,53 +53,84 @@ func LoadSolution(filename string) (SolutionFile, int) {
 	// scan for projects
 	for scanner.Scan() {
 		line := scanner.Text()
+		line = strings.TrimSpace(line)
 
 		found, _ := regexp.MatchString("Project\\(\\\"\\{[\\w]{8}\\-[\\w]{4}\\-[\\w]{4}\\-[\\w]{4}\\-[\\w]{12}\\}\\\"\\)", line)
-
 		if found {
-			scanProjectData(line)
+			project := scanProjectData(&solution, scanner, line)
+			solution.Projects[project.Path] = project
+		}
+
+		if line == "GlobalSection(NestedProjects) = preSolution" {
+			scanNestedProjects(&solution, scanner)
 		}
 	}
 
 	return solution, 0
 }
 
-func scanProjectData(line string) ProjectDefinition {
+func scanProjectData(solution *SolutionFile, scanner *bufio.Scanner, line string) ProjectDefinition {
 
 	// found a valid project definition
-	project, err := parseSolutionProject(filename, line)
+	project, _ := parseSolutionProject(solution.Filename, line)
+	if project.Name == "netlib" {
+		fmt.Println("test..")
+	}
 
 	for scanner.Scan() {
 
-		line := scanner.Text()
-		switch line {
-		case "EndProject":
-			break
-		case "ProjectSection(ProjectDependencies) = postProject":
-			scanProjectDeps(line, &proj)
-		}
-	}
+		line = scanner.Text()
+		line = strings.TrimSpace(line)
 
-	// found a valid project definition
-	project, err := parseSolutionProject(filename, line)
-	if err == 0 {
-		solution.Projects[project.Path] = project
+		if line == "EndProject" {
+			break
+		}
+
+		if line == "ProjectSection(ProjectDependencies) = postProject" {
+			scanProjectDeps(scanner, &project)
+		}
 	}
 
 	return project
 }
 
-func scanProjectDeps(line string, proj *ProjectDefinition) ProjectDefinition {
+func scanNestedProjects(solution *SolutionFile, scanner *bufio.Scanner) {
 
 	for scanner.Scan() {
 
 		line := scanner.Text()
+		line = strings.TrimSpace(line)
 
-		if line == "EndProjectSection" {
+		if strings.Contains(line, "EndGlobalSection") {
 			break
 		}
 
-		proj.Dependencies
+		solution.NestedProjects = append(solution.NestedProjects, line)
+	}
+}
+
+func scanProjectDeps(scanner *bufio.Scanner, proj *ProjectDefinition) {
+
+	for scanner.Scan() {
+
+		line := scanner.Text()
+		line = strings.TrimSpace(line)
+
+		if strings.Contains(line, "EndProjectSection") {
+			break
+		}
+
+		found := false
+		for _, item := range proj.Dependencies {
+			if item == line {
+				found = true
+				break
+			}
+		}
+
+		if found == false {
+			proj.Dependencies = append(proj.Dependencies, line)
+		}
 	}
 }
 
@@ -126,10 +156,6 @@ func parseSolutionProject(solutionfilename string, line string) (ProjectDefiniti
 	proj.Path = filepath.Dir(solutionfilename) + "\\" + proj.Path
 
 	return proj, 0
-}
-
-func registerProject(proj ProjectDefinition) {
-	newSolution.Projects[proj.Name] = proj
 }
 
 func checkError(err error) {
@@ -162,9 +188,13 @@ func CreateSolutionFile(sln SolutionFile, baseDir string) {
 		checkError(err)
 
 		// dump dependencies
-		_, err = w.WriteString("\tProjectSection(ProjectDependencies) = postProject\n")
-		_, err = w.WriteString("\t\t{B1AD7565-468E-4675-B684-FDC9BD1A35EB} = {B1AD7565-468E-4675-B684-FDC9BD1A35EB}\n")
-		_, err = w.WriteString("\tEndProjectSection\n")
+		if len(proj.Dependencies) > 0 {
+			_, err = w.WriteString("\tProjectSection(ProjectDependencies) = postProject\n")
+			for i := 0; i < len(proj.Dependencies); i++ {
+				_, err = w.WriteString("\t\t" + proj.Dependencies[i] + "\n")
+			}
+			_, err = w.WriteString("\tEndProjectSection\n")
+		}
 
 		_, err = w.WriteString("EndProject\n")
 		checkError(err)
@@ -183,6 +213,16 @@ func CreateSolutionFile(sln SolutionFile, baseDir string) {
 
 	_, err = w.WriteString("\tGlobalSection(ProjectConfigurationPlatforms) = postSolution\n")
 	_, err = w.WriteString("\tEndGlobalSection\n")
+
+	if len(sln.NestedProjects) > 0 {
+		_, err = w.WriteString("\tGlobalSection(NestedProjects) = preSolution\n")
+		for i := 0; i < len(sln.NestedProjects); i++ {
+			_, err = w.WriteString("\t\t" + sln.NestedProjects[i] + "\n")
+		}
+		_, err = w.WriteString("\tEndGlobalSection\n")
+	}
+
+	_, err = w.WriteString("EndGlobal\n")
 
 	fmt.Printf("Solution file [%s] created with [%d] projects\n", sln.Filename, len(sln.Projects))
 

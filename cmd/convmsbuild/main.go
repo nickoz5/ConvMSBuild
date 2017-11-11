@@ -72,6 +72,10 @@ func addTargets(sln *msbuild.SolutionFile, proj msbuild.ProjectFile) {
 						sln.Projects[k] = v
 					}
 				}
+
+				for _, v := range sproj.NestedProjects {
+					sln.NestedProjects = append(sln.NestedProjects, v)
+				}
 			}
 		}
 	}
