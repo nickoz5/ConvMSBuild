@@ -173,8 +173,6 @@ func CreateSolutionFile(sln SolutionFile, baseDir string) {
 
 	w := bufio.NewWriter(f)
 
-	//	var wlen int = -1
-
 	// dump the header
 	_, err = w.WriteString("\n" +
 		"Microsoft Visual Studio Solution File, Format Version 12.00\n" +

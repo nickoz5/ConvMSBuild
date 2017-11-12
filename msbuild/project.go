@@ -84,8 +84,6 @@ func LoadProject(filename string) ProjectFile {
 		for k, v := range imp.ProjectData.PropValues {
 			proj.ProjectData.PropValues[k] = v
 		}
-
-		//proj.ProjectData.ItemGroups = append(proj.ProjectData.ItemGroups, imp.ProjectData.ItemGroups)
 	}
 
 	for itemidx, _ := range proj.ProjectData.ItemGroups {

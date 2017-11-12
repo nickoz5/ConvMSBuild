@@ -25,22 +25,21 @@ func main() {
 
 	fmt.Println("Root project filename: ", rootProjectFilename)
 
-	baseDir := filepath.Dir(rootProjectFilename) + "\\"
+	basedir := filepath.Dir(rootProjectFilename) + "\\"
 
-	proj := msbuild.LoadProject(rootProjectFilename)
+	root := msbuild.LoadProject(rootProjectFilename)
 
-	//
 	var sln msbuild.SolutionFile
-	sln.Filename = baseDir + outputFilename
+	sln.Filename = basedir + outputFilename
 
 	sln.Projects = make(map[string]msbuild.ProjectDefinition)
-	addTargets(&sln, proj)
+	addTargets(&sln, root)
 
 	fmt.Println("Found project definition total: ", len(sln.Projects))
 
 	// determine number of target projects..
 
-	msbuild.CreateSolutionFile(sln, baseDir)
+	msbuild.CreateSolutionFile(sln, basedir)
 }
 
 func addTargets(sln *msbuild.SolutionFile, proj msbuild.ProjectFile) {
